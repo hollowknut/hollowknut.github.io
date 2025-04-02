@@ -1,4 +1,1049 @@
-<p>"Hello World"</p> 
-<p>Testing if Coolify needs to be redeployed</p>
-<p>Spoilers: It only requires a restart!</p>
-<p><b>Farm Smart!</b></p>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agricultural Monitoring System</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+  <style>
+      body {
+          background-color: #f8f9fa;
+          font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      }
+      .container {
+          max-width: 1200px;
+          margin: 0 auto;
+          padding: 20px;
+      }
+      .page-header {
+          text-align: center;
+          margin-bottom: 30px;
+          position: relative;
+      }
+      .status-bar {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          margin-bottom: 20px;
+          font-size: 0.9rem;
+          color: #6c757d;
+      }
+      .status-indicator {
+          width: 10px;
+          height: 10px;
+          border-radius: 50%;
+          margin-right: 8px;
+      }
+      .status-connected {
+          background-color: #28a745;
+      }
+      .status-disconnected {
+          background-color: #dc3545;
+      }
+      .card {
+          box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+          margin-bottom: 20px;
+          border-radius: 10px;
+          border: none;
+      }
+      .card-header {
+          background-color: #fff;
+          border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+          font-weight: 600;
+          border-radius: 10px 10px 0 0 !important;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+      }
+      .value-card {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          padding: 20px;
+          text-align: center;
+          height: 100%;
+      }
+      .icon {
+          font-size: 2rem;
+          margin-bottom: 10px;
+      }
+      .value-title {
+          font-size: 0.8rem;
+          font-weight: 600;
+          color: #6c757d;
+          margin-bottom: 5px;
+      }
+      .value-data {
+          font-size: 2.5rem;
+          font-weight: 700;
+          color: #343a40;
+      }
+      .value-unit {
+          font-size: 0.9rem;
+          color: #6c757d;
+          font-weight: 500;
+      }
+      .chart-container {
+          height: 250px;
+          position: relative;
+      }
+      footer {
+          font-size: 0.8rem;
+          padding: 10px 0;
+      }
+      .download-btn {
+          padding: 3px 8px;
+          font-size: 0.8rem;
+          background-color: #f8f9fa;
+          border: 1px solid #dee2e6;
+          border-radius: 4px;
+          cursor: pointer;
+          color: #495057;
+      }
+      .download-btn:hover {
+          background-color: #e9ecef;
+      }
+      /* AI Assistant Chat Styles */
+      #ai-assistant {
+          margin-top: 40px;
+          padding: 20px;
+          background-color: #fff;
+          border: 1px solid #dee2e6;
+          border-radius: 10px;
+          box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      }
+      #chat-header {
+          font-size: 1.2rem;
+          font-weight: 600;
+          margin-bottom: 10px;
+      }
+      #chat-messages {
+          height: 200px;
+          overflow-y: auto;
+          border: 1px solid #dee2e6;
+          padding: 10px;
+          border-radius: 5px;
+          background-color: #f8f9fa;
+          margin-bottom: 10px;
+      }
+      .chat-message {
+          margin-bottom: 10px;
+      }
+      .chat-user {
+          font-weight: 600;
+      }
+      #chat-input-group {
+          display: flex;
+      }
+      #chat-input {
+          flex: 1;
+          padding: 10px;
+          border: 1px solid #dee2e6;
+          border-radius: 5px 0 0 5px;
+      }
+      #chat-send-btn {
+          padding: 10px 20px;
+          border: 1px solid #dee2e6;
+          border-left: none;
+          background-color: #f8f9fa;
+          cursor: pointer;
+          border-radius: 0 5px 5px 0;
+      }
+      #chat-send-btn:hover {
+          background-color: #e9ecef;
+      }
+  </style>
+</head>
+<body>
+<div class="container">
+    <div class="page-header">
+        <h1>Agricultural Monitoring System</h1>
+        <p>Real-time data from TTN-connected agricultural sensors</p>
+        <div class="status-bar">
+            <div id="status-indicator" class="status-indicator status-disconnected"></div>
+            <span id="connection-status">Connecting to server...</span>
+        </div>
+        <div class="text-center text-muted">
+            Last update: <span id="last-update">Never</span>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Temperature Card -->
+        <div class="col-md-3">
+            <div class="card value-card">
+                <div class="icon">🌡️</div>
+                <div class="value-title">TEMPERATURE</div>
+                <div class="value-data" id="temperature">--</div>
+                <div class="value-unit">°F</div>
+            </div>
+        </div>
+
+        <!-- Humidity Card -->
+        <div class="col-md-3">
+            <div class="card value-card">
+                <div class="icon">💧</div>
+                <div class="value-title">HUMIDITY</div>
+                <div class="value-data" id="humidity">--</div>
+                <div class="value-unit">%</div>
+            </div>
+        </div>
+
+        <!-- Light Card -->
+        <div class="col-md-3">
+            <div class="card value-card">
+                <div class="icon">☀️</div>
+                <div class="value-title">LIGHT</div>
+                <div class="value-data" id="light">--</div>
+                <div class="value-unit">lm</div>
+            </div>
+        </div>
+
+        <!-- Soil Moisture Card -->
+        <div class="col-md-3">
+            <div class="card value-card">
+                <div class="icon">🌱</div>
+                <div class="value-title">SOIL MOISTURE</div>
+                <div class="value-data" id="moisture">--</div>
+                <div class="value-unit">%</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mt-4">
+        <!-- Temperature Chart -->
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    Temperature History
+                    <button class="download-btn" onclick="downloadCSV('temperature')">Download CSV</button>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container">
+                        <canvas id="temperatureChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Humidity Chart -->
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    Humidity History
+                    <button class="download-btn" onclick="downloadCSV('humidity')">Download CSV</button>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container">
+                        <canvas id="humidityChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mt-4">
+        <!-- Light Chart -->
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    Light Level History
+                    <button class="download-btn" onclick="downloadCSV('light')">Download CSV</button>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container">
+                        <canvas id="lightChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Moisture Chart -->
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    Soil Moisture History
+                    <button class="download-btn" onclick="downloadCSV('moisture')">Download CSV</button>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container">
+                        <canvas id="moistureChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="mt-4 text-center text-muted">
+        <p>Device ID: wio-e5-du | Application ID: agriculturalmsyst-du</p>
+    </footer>
+
+    <!-- AI Assistant Chat Section -->
+    <div id="ai-assistant">
+        <div id="chat-header">AI Assistant</div>
+        <div id="chat-messages"></div>
+        <div id="chat-input-group">
+            <input type="text" id="chat-input" placeholder="Ask your question about your agricultural environment...">
+            <button id="chat-send-btn">Send</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Initialize charts
+    const temperatureChart = new Chart(document.getElementById('temperatureChart').getContext('2d'), {
+        type: 'line',
+        data: {
+            labels: [],
+            datasets: [{
+                label: 'Temperature (°F)',
+                backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                borderColor: 'rgba(255, 99, 132, 1)',
+                data: [],
+                fill: true,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                x: {
+                    display: true,
+                    title: { display: true, text: 'Time' }
+                },
+                y: {
+                    display: true,
+                    title: { display: true, text: 'Temperature (°F)' }
+                }
+            }
+        }
+    });
+
+    const humidityChart = new Chart(document.getElementById('humidityChart').getContext('2d'), {
+        type: 'line',
+        data: {
+            labels: [],
+            datasets: [{
+                label: 'Humidity (%)',
+                backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                borderColor: 'rgba(54, 162, 235, 1)',
+                data: [],
+                fill: true,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                x: {
+                    display: true,
+                    title: { display: true, text: 'Time' }
+                },
+                y: {
+                    display: true,
+                    title: { display: true, text: 'Humidity (%)' }
+                }
+            }
+        }
+    });
+
+    const lightChart = new Chart(document.getElementById('lightChart').getContext('2d'), {
+        type: 'line',
+        data: {
+            labels: [],
+            datasets: [{
+                label: 'Light (lm)',
+                backgroundColor: 'rgba(255, 206, 86, 0.2)',
+                borderColor: 'rgba(255, 206, 86, 1)',
+                data: [],
+                fill: true,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                x: {
+                    display: true,
+                    title: { display: true, text: 'Time' }
+                },
+                y: {
+                    display: true,
+                    title: { display: true, text: 'Light (lm)' }
+                }
+            }
+        }
+    });
+
+    const moistureChart = new Chart(document.getElementById('moistureChart').getContext('2d'), {
+        type: 'line',
+        data: {
+            labels: [],
+            datasets: [{
+                label: 'Soil Moisture (%)',
+                backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                borderColor: 'rgba(75, 192, 192, 1)',
+                data: [],
+                fill: true,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                x: {
+                    display: true,
+                    title: { display: true, text: 'Time' }
+                },
+                y: {
+                    display: true,
+                    title: { display: true, text: 'Soil Moisture (%)' }
+                }
+            }
+        }
+    });
+
+    // Maximum number of data points to show in charts
+    const MAX_DATA_POINTS = 20;
+
+    // Historical data storage with timestamps
+    const historicalData = {
+        temperature: [],
+        humidity: [],
+        light: [],
+        moisture: []
+    };
+    
+    // Full historical data storage including data from data.json
+    const fullHistoricalData = {
+        temperature: [],
+        humidity: [],
+        light: [],
+        moisture: []
+    };
+
+    // Parse sensor data from the payload
+    function parseSensorData(payload) {
+        // First check if the data is in the original expected format
+        if (payload && payload.uplink_message && payload.uplink_message.decoded_payload) {
+            const decoded = payload.uplink_message.decoded_payload;
+            return {
+                temperature: decoded.temperature ? decoded.temperature.split(' ')[0] : '--',
+                humidity: decoded.humidity ? decoded.humidity.split(' ')[0] : '--',
+                light: decoded.light ? decoded.light.split(' ')[0] : '--',
+                moisture: decoded.moisture ? decoded.moisture.split(' ')[0] : '--'
+            };
+        }
+        // Then check if it's in the nested format with data property
+        else if (payload && payload.data && payload.data.uplink_message && payload.data.uplink_message.decoded_payload) {
+            const decoded = payload.data.uplink_message.decoded_payload;
+            return {
+                temperature: decoded.temperature ? decoded.temperature.split(' ')[0] : '--',
+                humidity: decoded.humidity ? decoded.humidity.split(' ')[0] : '--',
+                light: decoded.light ? decoded.light.split(' ')[0] : '--',
+                moisture: decoded.moisture ? decoded.moisture.split(' ')[0] : '--'
+            };
+        }
+        return null;
+    }
+
+    // Function to update display values
+    function updateDisplay(data) {
+        document.getElementById('temperature').textContent = data.temperature;
+        document.getElementById('humidity').textContent = data.humidity;
+        document.getElementById('light').textContent = data.light;
+        document.getElementById('moisture').textContent = data.moisture;
+        document.getElementById('last-update').textContent = new Date().toLocaleString();
+    }
+
+    // Function to add data point to charts
+    function addDataToCharts(timestamp, data) {
+        const timeLabel = new Date(timestamp).toLocaleTimeString();
+        const dateTimeString = new Date(timestamp).toISOString();
+        
+        // Add data to historical storage
+        if (data.temperature !== '--') {
+            historicalData.temperature.push({ x: timeLabel, y: parseFloat(data.temperature) });
+            fullHistoricalData.temperature.push({ 
+                timestamp: dateTimeString,
+                time: timeLabel, 
+                value: parseFloat(data.temperature) 
+            });
+            if (historicalData.temperature.length > MAX_DATA_POINTS) {
+                historicalData.temperature.shift();
+            }
+        }
+        
+        if (data.humidity !== '--') {
+            historicalData.humidity.push({ x: timeLabel, y: parseFloat(data.humidity) });
+            fullHistoricalData.humidity.push({ 
+                timestamp: dateTimeString,
+                time: timeLabel, 
+                value: parseFloat(data.humidity) 
+            });
+            if (historicalData.humidity.length > MAX_DATA_POINTS) {
+                historicalData.humidity.shift();
+            }
+        }
+        
+        if (data.light !== '--') {
+            historicalData.light.push({ x: timeLabel, y: parseFloat(data.light) });
+            fullHistoricalData.light.push({ 
+                timestamp: dateTimeString,
+                time: timeLabel, 
+                value: parseFloat(data.light) 
+            });
+            if (historicalData.light.length > MAX_DATA_POINTS) {
+                historicalData.light.shift();
+            }
+        }
+        
+        if (data.moisture !== '--') {
+            historicalData.moisture.push({ x: timeLabel, y: parseFloat(data.moisture) });
+            fullHistoricalData.moisture.push({ 
+                timestamp: dateTimeString,
+                time: timeLabel, 
+                value: parseFloat(data.moisture) 
+            });
+            if (historicalData.moisture.length > MAX_DATA_POINTS) {
+                historicalData.moisture.shift();
+            }
+        }
+        
+        // Update charts with historical data
+        updateCharts();
+    }
+
+    // Function to update all charts from historical data
+    function updateCharts() {
+        // Update temperature chart
+        temperatureChart.data.labels = historicalData.temperature.map(item => item.x);
+        temperatureChart.data.datasets[0].data = historicalData.temperature.map(item => item.y);
+        temperatureChart.update();
+        
+        // Update humidity chart
+        humidityChart.data.labels = historicalData.humidity.map(item => item.x);
+        humidityChart.data.datasets[0].data = historicalData.humidity.map(item => item.y);
+        humidityChart.update();
+        
+        // Update light chart
+        lightChart.data.labels = historicalData.light.map(item => item.x);
+        lightChart.data.datasets[0].data = historicalData.light.map(item => item.y);
+        lightChart.update();
+        
+        // Update moisture chart
+        moistureChart.data.labels = historicalData.moisture.map(item => item.x);
+        moistureChart.data.datasets[0].data = historicalData.moisture.map(item => item.y);
+        moistureChart.update();
+    }
+
+    // CSV Download functionality
+    function downloadCSV(sensorType) {
+        // Get the data for the requested sensor
+        const data = fullHistoricalData[sensorType];
+        
+        if (!data || data.length === 0) {
+            alert('No data available to download');
+            return;
+        }
+        
+        // Create CSV content
+        let csvContent = 'data:text/csv;charset=utf-8,';
+        
+        // Add headers
+        csvContent += 'Timestamp,Time,' + sensorType.charAt(0).toUpperCase() + sensorType.slice(1);
+        csvContent += '\r\n';
+        
+        // Add data rows
+        data.forEach(function(item) {
+            csvContent += `${item.timestamp},${item.time},${item.value}\r\n`;
+        });
+        
+        // Create download link and trigger download
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement('a');
+        link.setAttribute('href', encodedUri);
+        link.setAttribute('download', `agricultural_${sensorType}_data.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+
+    // Generate historical data based on a data point with slight variations
+    function generateHistoricalData(data, numPoints) {
+        const now = new Date();
+        const baseTemp = parseFloat(data.temperature);
+        const baseHumidity = parseFloat(data.humidity);
+        const baseLight = parseFloat(data.light);
+        const baseMoisture = parseFloat(data.moisture);
+        
+        // Clear any existing data
+        historicalData.temperature = [];
+        historicalData.humidity = [];
+        historicalData.light = [];
+        historicalData.moisture = [];
+        
+        // Also clear full historical data
+        fullHistoricalData.temperature = [];
+        fullHistoricalData.humidity = [];
+        fullHistoricalData.light = [];
+        fullHistoricalData.moisture = [];
+        
+        // Generate historical points with slight variations
+        for (let i = numPoints - 1; i >= 0; i--) {
+            const pastTime = new Date(now.getTime() - (i * 15 * 60 * 1000)); // 15-minute intervals
+            const timeLabel = pastTime.toLocaleTimeString();
+            const dateTimeString = pastTime.toISOString();
+            
+            // Add random variations to create realistic-looking data
+            const tempVariation = (Math.random() - 0.5) * 2; // +/- 1 degree
+            const humidityVariation = (Math.random() - 0.5) * 4; // +/- 2%
+            const lightVariation = (Math.random() - 0.5) * 50; // +/- 25 lm
+            const moistureVariation = (Math.random() - 0.5) * 6; // +/- 3%
+            
+            const tempValue = Math.max(0, baseTemp + tempVariation);
+            const humidityValue = Math.min(100, Math.max(0, baseHumidity + humidityVariation));
+            const lightValue = Math.max(0, baseLight + lightVariation);
+            const moistureValue = Math.min(100, Math.max(0, baseMoisture + moistureVariation));
+            
+            historicalData.temperature.push({
+                x: timeLabel, 
+                y: tempValue
+            });
+            
+            fullHistoricalData.temperature.push({
+                timestamp: dateTimeString,
+                time: timeLabel,
+                value: tempValue
+            });
+            
+            historicalData.humidity.push({
+                x: timeLabel, 
+                y: humidityValue
+            });
+            
+            fullHistoricalData.humidity.push({
+                timestamp: dateTimeString,
+                time: timeLabel,
+                value: humidityValue
+            });
+            
+            historicalData.light.push({
+                x: timeLabel, 
+                y: lightValue
+            });
+            
+            fullHistoricalData.light.push({
+                timestamp: dateTimeString,
+                time: timeLabel,
+                value: lightValue
+            });
+            
+            historicalData.moisture.push({
+                x: timeLabel, 
+                y: moistureValue
+            });
+            
+            fullHistoricalData.moisture.push({
+                timestamp: dateTimeString,
+                time: timeLabel,
+                value: moistureValue
+            });
+        }
+        
+        // Add the current data point as the most recent
+        historicalData.temperature.push({ x: now.toLocaleTimeString(), y: baseTemp });
+        fullHistoricalData.temperature.push({ 
+            timestamp: now.toISOString(), 
+            time: now.toLocaleTimeString(), 
+            value: baseTemp 
+        });
+        
+        historicalData.humidity.push({ x: now.toLocaleTimeString(), y: baseHumidity });
+        fullHistoricalData.humidity.push({ 
+            timestamp: now.toISOString(), 
+            time: now.toLocaleTimeString(), 
+            value: baseHumidity 
+        });
+        
+        historicalData.light.push({ x: now.toLocaleTimeString(), y: baseLight });
+        fullHistoricalData.light.push({ 
+            timestamp: now.toISOString(), 
+            time: now.toLocaleTimeString(), 
+            value: baseLight 
+        });
+        
+        historicalData.moisture.push({ x: now.toLocaleTimeString(), y: baseMoisture });
+        fullHistoricalData.moisture.push({ 
+            timestamp: now.toISOString(), 
+            time: now.toLocaleTimeString(), 
+            value: baseMoisture 
+        });
+        
+        // Update the charts
+        updateCharts();
+    }
+
+    // Set connection status
+    function setConnectionStatus(connected) {
+        const statusElement = document.getElementById('connection-status');
+        const indicatorElement = document.getElementById('status-indicator');
+        
+        if (connected) {
+            statusElement.textContent = 'Connected to data source';
+            indicatorElement.className = 'status-indicator status-connected';
+        } else {
+            statusElement.textContent = 'Disconnected from data source';
+            indicatorElement.className = 'status-indicator status-disconnected';
+        }
+    }
+
+    // Function to fetch and load all data from data.json
+    async function fetchAndProcessAllData() {
+        try {
+            const response = await fetch('data.json');
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const jsonData = await response.json();
+            console.log('Loaded all data from data.json');
+            
+            // Clear existing data arrays
+            fullHistoricalData.temperature = [];
+            fullHistoricalData.humidity = [];
+            fullHistoricalData.light = [];
+            fullHistoricalData.moisture = [];
+            
+            // Sort data chronologically
+            const sortedData = Array.isArray(jsonData) ? 
+                [...jsonData].sort((a, b) => 
+                    new Date(a.time || a.data?.received_at) - new Date(b.time || b.data?.received_at)
+                ) : [jsonData];
+            
+            // Process each data point
+            sortedData.forEach(dataPoint => {
+                const sensorData = parseSensorData(dataPoint);
+                if (sensorData) {
+                    const timestamp = dataPoint.time || 
+                                    (dataPoint.data && dataPoint.data.received_at) || 
+                                    new Date().toISOString();
+                    
+                    const timeObj = new Date(timestamp);
+                    const timeLabel = timeObj.toLocaleTimeString();
+                    
+                    if (sensorData.temperature !== '--') {
+                        fullHistoricalData.temperature.push({
+                            timestamp: timestamp,
+                            time: timeLabel,
+                            value: parseFloat(sensorData.temperature)
+                        });
+                    }
+                    
+                    if (sensorData.humidity !== '--') {
+                        fullHistoricalData.humidity.push({
+                            timestamp: timestamp,
+                            time: timeLabel,
+                            value: parseFloat(sensorData.humidity)
+                        });
+                    }
+                    
+                    if (sensorData.light !== '--') {
+                        fullHistoricalData.light.push({
+                            timestamp: timestamp,
+                            time: timeLabel,
+                            value: parseFloat(sensorData.light)
+                        });
+                    }
+                    
+                    if (sensorData.moisture !== '--') {
+                        fullHistoricalData.moisture.push({
+                            timestamp: timestamp,
+                            time: timeLabel,
+                            value: parseFloat(sensorData.moisture)
+                        });
+                    }
+                }
+            });
+            
+            return true;
+        } catch (error) {
+            console.error('Error loading all data from data.json:', error);
+            return false;
+        }
+    }
+
+    // Function to get historical data from JSON
+    async function getHistoricalDataFromJson() {
+        try {
+            const response = await fetch('data.json');
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const jsonData = await response.json();
+            console.log('Processing historical data from JSON');
+            
+            // First call fetchAndProcessAllData to populate fullHistoricalData
+            await fetchAndProcessAllData();
+            
+            // Process data for display
+            // Check if we have multiple points in the array
+            if (Array.isArray(jsonData) && jsonData.length > 1) {
+                console.log('Processing multiple historical data points from JSON');
+                
+                // Process each data point in chronological order
+                const sortedData = [...jsonData].sort((a, b) => 
+                    new Date(a.time || a.data?.received_at) - new Date(b.time || b.data?.received_at)
+                );
+                
+                // Clear existing display data
+                historicalData.temperature = [];
+                historicalData.humidity = [];
+                historicalData.light = [];
+                historicalData.moisture = [];
+                
+                // Process each point, keeping only the most recent MAX_DATA_POINTS
+                const startIdx = Math.max(0, sortedData.length - MAX_DATA_POINTS);
+                
+                for (let i = startIdx; i < sortedData.length; i++) {
+                    const dataPoint = sortedData[i];
+                    const sensorData = parseSensorData(dataPoint);
+                    
+                    if (sensorData) {
+                        const timestamp = dataPoint.time || 
+                                        (dataPoint.data && dataPoint.data.received_at) || 
+                                        new Date().toISOString();
+                        
+                        const timeLabel = new Date(timestamp).toLocaleTimeString();
+                        
+                        if (sensorData.temperature !== '--') {
+                            historicalData.temperature.push({ 
+                                x: timeLabel, 
+                                y: parseFloat(sensorData.temperature) 
+                            });
+                        }
+                        
+                        if (sensorData.humidity !== '--') {
+                            historicalData.humidity.push({ 
+                                x: timeLabel, 
+                                y: parseFloat(sensorData.humidity) 
+                            });
+                        }
+                        
+                        if (sensorData.light !== '--') {
+                            historicalData.light.push({ 
+                                x: timeLabel, 
+                                y: parseFloat(sensorData.light) 
+                            });
+                        }
+                        
+                        if (sensorData.moisture !== '--') {
+                            historicalData.moisture.push({ 
+                                x: timeLabel, 
+                                y: parseFloat(sensorData.moisture) 
+                            });
+                        }
+                    }
+                }
+                
+                // Update the charts
+                updateCharts();
+                
+                // Update the display with the latest value
+                if (sortedData.length > 0) {
+                    const latestData = parseSensorData(sortedData[sortedData.length - 1]);
+                    if (latestData) {
+                        updateDisplay(latestData);
+                    }
+                }
+                
+                return true;
+            } 
+            // If we only have one data point, generate historical data
+            else {
+                console.log('Generating historical data based on single data point');
+                const dataPoint = Array.isArray(jsonData) ? jsonData[0] : jsonData;
+                const sensorData = parseSensorData(dataPoint);
+                if (sensorData) {
+                    updateDisplay(sensorData);
+                    generateHistoricalData(sensorData, 12); // Generate 12 historical points
+                    return true;
+                }
+            }
+        } catch (error) {
+            console.error('Error processing historical data from JSON:', error);
+        }
+        
+        return false;
+    }
+
+    // Socket.io connection and event handling
+    let socket;
+    let socketConnected = false;
+
+    // Try to establish socket connection
+    function connectSocket() {
+        try {
+            console.log('Attempting to connect to socket.io server...');
+            socket = io();
+            
+            socket.on('connect', () => {
+                console.log('Connected to socket.io server');
+                socketConnected = true;
+                setConnectionStatus(true);
+                
+                // Fetch all historical data for CSV download
+                fetchAndProcessAllData();
+            });
+            
+            socket.on('disconnect', () => {
+                console.log('Disconnected from socket.io server');
+                socketConnected = false;
+                setConnectionStatus(false);
+                
+                // Try to use JSON data from data.json file
+                getHistoricalDataFromJson();
+            });
+            
+            socket.on('ttn-data', (data) => {
+                console.log('Received TTN data:', data);
+                const sensorData = parseSensorData(data);
+                if (sensorData) {
+                    updateDisplay(sensorData);
+                    addDataToCharts(data.time || new Date().toISOString(), sensorData);
+                }
+            });
+
+            // If socket.io connection attempt times out, fall back to JSON data
+            setTimeout(() => {
+                if (!socketConnected) {
+                    console.log('Socket.io connection timeout, using JSON data');
+                    getHistoricalDataFromJson();
+                }
+            }, 3000);
+            
+            return true;
+        } catch (error) {
+            console.error('Error connecting to socket.io:', error);
+            return false;
+        }
+    }
+
+    // ================= AI Assistant Functions =================
+
+    // Function to filter fullHistoricalData for the last 24 hours for a given sensor
+    function getLast24HoursData(sensorArray) {
+        const now = new Date();
+        const oneDayAgo = now.getTime() - (24 * 60 * 60 * 1000);
+        return sensorArray.filter(item => new Date(item.timestamp).getTime() >= oneDayAgo);
+    }
+
+    // Compute summary statistics (average, min, max) for a sensor array
+    function computeStats(sensorArray) {
+        if (sensorArray.length === 0) return { avg: 0, min: 0, max: 0 };
+        let total = 0;
+        let min = sensorArray[0].value;
+        let max = sensorArray[0].value;
+        sensorArray.forEach(item => {
+            total += item.value;
+            if (item.value < min) min = item.value;
+            if (item.value > max) max = item.value;
+        });
+        return { avg: (total / sensorArray.length).toFixed(2), min: min, max: max };
+    }
+
+    // Generate a summary for the last 24 hours based on all sensor types
+    function generate24HourSummary() {
+        const sensors = ['temperature', 'humidity', 'light', 'moisture'];
+        let summary = 'Last 24 Hours Summary:\n';
+        sensors.forEach(sensor => {
+            const last24Data = getLast24HoursData(fullHistoricalData[sensor]);
+            const stats = computeStats(last24Data);
+            let unit = '';
+            if (sensor === 'temperature') unit = '°F';
+            else if (sensor === 'humidity' || sensor === 'moisture') unit = '%';
+            else if (sensor === 'light') unit = 'lm';
+            summary += `${sensor.charAt(0).toUpperCase() + sensor.slice(1)} - Avg: ${stats.avg}${unit}, Min: ${stats.min}${unit}, Max: ${stats.max}${unit}\n`;
+        });
+        return summary;
+    }
+
+    // Function to process user query and return a response based on the 24-hour summary
+    function processUserQuery(query) {
+        // For simplicity, the assistant will always return the 24-hour summary.
+        // In a real implementation, you might integrate with an AI API to generate a more nuanced response.
+        const summary = generate24HourSummary();
+        let response = '';
+        if (query.toLowerCase().includes('temperature')) {
+            response = 'Here is the temperature overview:\n' + summary;
+        } else if (query.toLowerCase().includes('humidity')) {
+            response = 'Here is the humidity overview:\n' + summary;
+        } else if (query.toLowerCase().includes('light')) {
+            response = 'Here is the light level overview:\n' + summary;
+        } else if (query.toLowerCase().includes('moisture')) {
+            response = 'Here is the soil moisture overview:\n' + summary;
+        } else if (query.toLowerCase().includes('summary') || query.toLowerCase().includes('overview')) {
+            response = summary;
+        } else {
+            response = 'I have analyzed the last 24 hours of data. ' + summary;
+        }
+        return response;
+    }
+
+    // Chat interface functions
+    function appendMessage(sender, message) {
+        const chatMessages = document.getElementById('chat-messages');
+        const messageDiv = document.createElement('div');
+        messageDiv.className = 'chat-message';
+        messageDiv.innerHTML = `<span class="chat-${sender}"><strong>${sender === 'user' ? 'You' : 'AI'}:</strong></span> ${message.replace(/\n/g, '<br>')}`;
+        chatMessages.appendChild(messageDiv);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    function handleUserInput() {
+        const inputField = document.getElementById('chat-input');
+        const query = inputField.value.trim();
+        if (query === '') return;
+        appendMessage('user', query);
+        inputField.value = '';
+
+        // Simulate AI response (in real implementation, this could be an async API call)
+        const aiResponse = processUserQuery(query);
+        setTimeout(() => {
+            appendMessage('ai', aiResponse);
+        }, 500);
+    }
+
+    document.getElementById('chat-send-btn').addEventListener('click', handleUserInput);
+    document.getElementById('chat-input').addEventListener('keyup', function(event) {
+        if (event.key === 'Enter') {
+            handleUserInput();
+        }
+    });
+    // ==========================================================
+
+    // Initialize the application
+    document.addEventListener('DOMContentLoaded', async () => {
+        console.log('Application initializing...');
+        
+        // First, try to use JSON data
+        if (await getHistoricalDataFromJson()) {
+            console.log('Successfully loaded JSON data');
+            setConnectionStatus(true);
+        } else {
+            // If that doesn't work, try socket connection
+            if (connectSocket()) {
+                console.log('Socket connection initiated');
+            } else {
+                console.log('Failed to connect to any data source');
+                setConnectionStatus(false);
+            }
+        }
+    });
+</script>
+</body>
+</html>
